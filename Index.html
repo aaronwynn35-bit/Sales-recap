@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Recap Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #080808; --card: #0f0f0f; --card2: #141414;
+  --green: #18ff6d; --green-dim: rgba(24,255,109,.07); --green-border: rgba(24,255,109,.18);
+  --yellow: #ffdd00;
+  --border: #1e1e1e; --border2: #242424; --muted: #555; --muted2: #888; --text: #e8e8e8; --red: #ff4444;
+}
+body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:40px 20px 100px; }
+
+.app-header { text-align:center; margin-bottom:44px; }
+.app-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(32px,5vw,58px); letter-spacing:4px; color:var(--green); line-height:1; }
+.app-sub { color:var(--muted); font-size:12px; letter-spacing:1.5px; text-transform:uppercase; margin-top:6px; }
+
+.panel { width:100%; max-width:700px; background:var(--card); border:1px solid var(--border); border-radius:18px; padding:28px 32px; margin-bottom:16px; }
+.panel-title { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2.5px; color:var(--green); margin-bottom:18px; display:flex; align-items:center; gap:10px; }
+.step-badge { background:var(--green); color:#000; font-size:10px; font-family:'DM Sans',sans-serif; font-weight:700; padding:2px 8px; border-radius:20px; letter-spacing:0; }
+
+/* Drop zone */
+.drop-zone { border:2px dashed var(--border2); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:border-color .2s,background .2s; position:relative; }
+.drop-zone:hover,.drop-zone.dragover { border-color:var(--green); background:var(--green-dim); }
+.drop-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.drop-icon { font-size:28px; margin-bottom:8px; }
+.drop-label { font-size:14px; color:var(--text); font-weight:500; }
+.drop-hint { font-size:11px; color:var(--muted); margin-top:4px; }
+.file-chosen { color:var(--green); font-size:12px; margin-top:10px; font-weight:600; display:none; }
+.col-check { display:none; margin-top:14px; gap:8px; flex-wrap:wrap; }
+.col-check.visible { display:flex; }
+.col-pill { font-size:11px; padding:4px 10px; border-radius:20px; display:flex; align-items:center; gap:5px; font-weight:600; }
+.col-pill.ok  { background:rgba(24,255,109,.1); color:var(--green); border:1px solid var(--green-border); }
+.col-pill.miss{ background:rgba(255,68,68,.1);  color:var(--red);   border:1px solid rgba(255,68,68,.2); }
+
+/* Period selector */
+.period-btns { display:flex; gap:8px; flex-wrap:wrap; }
+.period-btn {
+  padding:10px 20px; border-radius:10px; border:1px solid var(--border2);
+  background:transparent; color:var(--muted2); font-size:13px;
+  font-family:'DM Sans',sans-serif; font-weight:600; cursor:pointer; transition:all .15s;
+  display:flex; flex-direction:column; align-items:center; gap:2px; flex:1; min-width:90px;
+}
+.period-btn .pb-label { font-size:13px; }
+.period-btn .pb-sub   { font-size:10px; color:var(--muted); font-weight:400; }
+.period-btn:hover,.period-btn.active { border-color:var(--green); color:var(--green); background:var(--green-dim); }
+.period-btn.active .pb-sub { color:rgba(24,255,109,.6); }
+
+/* Platform toggles */
+.platform-toggles { display:flex; gap:10px; flex-wrap:wrap; }
+.plat-toggle { display:flex; align-items:center; gap:8px; padding:8px 16px; border-radius:10px; border:1px solid var(--border2); cursor:pointer; transition:all .15s; user-select:none; }
+.plat-toggle input { display:none; }
+.plat-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.plat-toggle span { font-size:13px; font-weight:500; color:var(--muted2); transition:color .15s; }
+.plat-toggle.on { background:var(--card2); }
+.plat-toggle.on span { color:var(--text); }
+.plat-toggle.off { opacity:.35; }
+
+/* Stats preview */
+.stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+.stat-box { background:var(--card2); border:1px solid var(--border2); border-radius:12px; padding:14px 16px; }
+.stat-lbl { font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:4px; }
+.stat-val { font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--green); letter-spacing:1px; line-height:1; }
+.stat-val.neutral { color:var(--text); }
+.divider { height:1px; background:var(--border); margin:16px 0; }
+.top3-lbl { font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
+.top3-list { display:flex; flex-direction:column; gap:8px; }
+.top3-row { display:flex; align-items:center; gap:12px; background:var(--card2); border:1px solid var(--border2); border-radius:10px; padding:12px 14px; }
+.t3-rank { font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--green); width:26px; flex-shrink:0; line-height:1; }
+.t3-info { flex:1; min-width:0; }
+.t3-name { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t3-meta { font-size:11px; color:var(--muted2); margin-top:3px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.t3-profit { font-family:'Bebas Neue',sans-serif; font-size:20px; color:var(--green); flex-shrink:0; }
+.sameday-chip { background:rgba(255,221,0,.15); color:var(--yellow); font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; }
+.plat-sm { font-size:10px; font-weight:600; padding:2px 7px; border-radius:4px; }
+.no-data { text-align:center; padding:24px; color:var(--muted); font-size:13px; }
+
+/* Photo slots */
+.photo-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.photo-slot { aspect-ratio:1; border:2px dashed var(--border2); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:border-color .2s,background .2s; position:relative; overflow:hidden; }
+.photo-slot:hover { border-color:var(--green); background:var(--green-dim); }
+.photo-slot input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.slot-rank { font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--muted); }
+.slot-name { font-size:9px; color:var(--muted); text-align:center; padding:0 8px; margin-top:4px; line-height:1.3; }
+.slot-hint { font-size:10px; color:var(--muted); margin-top:8px; letter-spacing:.5px; }
+.photo-slot img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:10px; }
+.remove-btn { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.85); color:#fff; border:none; border-radius:50%; width:22px; height:22px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:2; opacity:0; transition:opacity .15s; }
+.photo-slot:hover .remove-btn { opacity:1; }
+.tip { font-size:11px; color:var(--muted); display:flex; align-items:flex-start; gap:6px; line-height:1.5; margin-bottom:16px; }
+
+/* Generate */
+.generate-btn { width:100%; max-width:700px; padding:18px; background:var(--green); color:#000; border:none; border-radius:14px; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; cursor:pointer; transition:transform .15s,box-shadow .15s; margin-top:8px; }
+.generate-btn:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 32px rgba(24,255,109,.22); }
+.generate-btn:disabled { opacity:.25; cursor:not-allowed; transform:none; box-shadow:none; }
+
+/* Status */
+.status { width:100%; max-width:700px; padding:14px 18px; border-radius:12px; font-size:13px; margin-top:14px; display:none; align-items:center; gap:10px; }
+.status.loading { display:flex; background:var(--green-dim); border:1px solid var(--green-border); color:var(--green); }
+.status.error   { display:flex; background:rgba(255,68,68,.08); border:1px solid rgba(255,68,68,.2); color:var(--red); }
+.status.success { display:flex; background:var(--green-dim); border:1px solid var(--green-border); color:var(--green); }
+.spinner { width:16px; height:16px; border:2px solid rgba(24,255,109,.3); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Preview */
+.preview-section { width:100%; max-width:700px; margin-top:28px; display:none; }
+.preview-section.visible { display:block; }
+.preview-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.preview-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; color:var(--green); }
+.download-btn { padding:9px 20px; background:transparent; border:1px solid var(--green); color:var(--green); border-radius:8px; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s,color .15s; text-decoration:none; display:inline-block; }
+.download-btn:hover { background:var(--green); color:#000; }
+.preview-frame-wrap { border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.preview-frame { width:100%; border:none; height:700px; display:block; background:#080808; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div style="font-size:32px;margin-bottom:8px">📦</div>
+  <div class="app-title">SALES RECAP</div>
+  <div class="app-sub">Multi-Platform Reseller · Social Media Graphic Builder</div>
+</header>
+
+<!-- 01 CSV -->
+<div class="panel">
+  <div class="panel-title"><span class="step-badge">01</span> UPLOAD YOUR NIFTY CSV</div>
+  <div class="drop-zone" id="csvDrop">
+    <input type="file" id="csvFile" accept=".csv">
+    <div class="drop-icon">📊</div>
+    <div class="drop-label">Drop CSV here or click to browse</div>
+    <div class="drop-hint">Export whatever date range you want from Nifty — no filtering happens here</div>
+    <div class="file-chosen" id="csvChosen"></div>
+  </div>
+  <div class="col-check" id="colCheck"></div>
+</div>
+
+<!-- 02 Period label -->
+<div class="panel">
+  <div class="panel-title"><span class="step-badge">02</span> GRAPHIC HEADER LABEL</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">This label appears on the graphic — it just sets the header text, not any filtering.</div>
+  <div class="period-btns">
+    <button class="period-btn active" id="pb-today"   onclick="setPeriod('today')">  <span class="pb-label">Today</span>    <span class="pb-sub" id="ps-today"></span></button>
+    <button class="period-btn"        id="pb-yesterday" onclick="setPeriod('yesterday')"><span class="pb-label">Yesterday</span><span class="pb-sub" id="ps-yesterday"></span></button>
+    <button class="period-btn"        id="pb-week"    onclick="setPeriod('week')">   <span class="pb-label">This Week</span> <span class="pb-sub" id="ps-week"></span></button>
+    <button class="period-btn"        id="pb-month"   onclick="setPeriod('month')">  <span class="pb-label">This Month</span><span class="pb-sub" id="ps-month"></span></button>
+    <button class="period-btn"        id="pb-quarter" onclick="setPeriod('quarter')"><span class="pb-label">This Quarter</span><span class="pb-sub" id="ps-quarter"></span></button>
+    <button class="period-btn"        id="pb-year"    onclick="setPeriod('year')">   <span class="pb-label">This Year</span> <span class="pb-sub" id="ps-year"></span></button>
+  </div>
+</div>
+
+<!-- 03 Platforms -->
+<div class="panel">
+  <div class="panel-title"><span class="step-badge">03</span> PLATFORMS IN THIS EXPORT</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Toggle off any platforms not in your export so they're excluded from the graphic's platform breakdown.</div>
+  <div class="platform-toggles">
+    <label class="plat-toggle on" id="tog-eBay">    <input type="checkbox" checked onchange="togglePlat('eBay',this)">    <span class="plat-dot" style="background:#e53238"></span><span>eBay</span></label>
+    <label class="plat-toggle on" id="tog-Poshmark"><input type="checkbox" checked onchange="togglePlat('Poshmark',this)"><span class="plat-dot" style="background:#d4365c"></span><span>Poshmark</span></label>
+    <label class="plat-toggle on" id="tog-Depop">  <input type="checkbox" checked onchange="togglePlat('Depop',this)">  <span class="plat-dot" style="background:#ff2300"></span><span>Depop</span></label>
+    <label class="plat-toggle on" id="tog-Mercari"> <input type="checkbox" checked onchange="togglePlat('Mercari',this)"> <span class="plat-dot" style="background:#ff0211"></span><span>Mercari</span></label>
+  </div>
+</div>
+
+<!-- 04 Stats preview -->
+<div class="panel" id="statsPanel" style="display:none">
+  <div class="panel-title" style="margin-bottom:14px">📊 PREVIEW — ALL ROWS IN CSV</div>
+  <div id="statsInner"></div>
+</div>
+
+<!-- 05 Photos -->
+<div class="panel">
+  <div class="panel-title"><span class="step-badge">04</span> ITEM PHOTOS <span style="color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;font-weight:400;letter-spacing:0">(optional)</span></div>
+  <div class="tip"><span>💡</span><span>Upload in profit rank order — #1 left, #3 right. Top 3 items are shown above after loading your CSV.</span></div>
+  <div class="photo-grid">
+    <div class="photo-slot" id="slot0"><input type="file" accept="image/*" onchange="handlePhoto(0,this)"><div class="slot-rank">#1</div><div class="slot-name" id="sn0">Highest Profit</div><div class="slot-hint">TAP TO ADD</div><button class="remove-btn" onclick="removePhoto(0,event)">✕</button></div>
+    <div class="photo-slot" id="slot1"><input type="file" accept="image/*" onchange="handlePhoto(1,this)"><div class="slot-rank">#2</div><div class="slot-name" id="sn1">2nd Profit</div>  <div class="slot-hint">TAP TO ADD</div><button class="remove-btn" onclick="removePhoto(1,event)">✕</button></div>
+    <div class="photo-slot" id="slot2"><input type="file" accept="image/*" onchange="handlePhoto(2,this)"><div class="slot-rank">#3</div><div class="slot-name" id="sn2">3rd Profit</div>  <div class="slot-hint">TAP TO ADD</div><button class="remove-btn" onclick="removePhoto(2,event)">✕</button></div>
+  </div>
+</div>
+
+<button class="generate-btn" id="genBtn" disabled onclick="generate()">⚡ GENERATE RECAP GRAPHIC</button>
+
+<div class="status" id="statusEl">
+  <div class="spinner" id="statusSpinner"></div>
+  <span id="statusText"></span>
+</div>
+
+<div class="preview-section" id="previewSection">
+  <div class="preview-header">
+    <div class="preview-title">PREVIEW</div>
+    <a class="download-btn" id="downloadBtn" href="#" download="sales_recap.html">⬇ Download</a>
+  </div>
+  <!-- Copy for Textastic -->
+  <div style="margin-bottom:12px;">
+    <button onclick="copyHTML()" id="copyBtn" style="width:100%;padding:14px;background:transparent;border:1px solid var(--green);color:var(--green);border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;cursor:pointer;transition:background .15s,color .15s;">
+      📋 COPY HTML FOR TEXTASTIC
+    </button>
+    <div id="copyConfirm" style="display:none;text-align:center;color:var(--green);font-size:12px;margin-top:8px;font-weight:600;">✓ Copied! Open Textastic → New File → Paste → Save as recap.html → Preview</div>
+  </div>
+  <div class="preview-frame-wrap">
+    <iframe class="preview-frame" id="previewFrame" title="Sales Recap Preview"></iframe>
+  </div>
+</div>
+
+<!-- FB Post Section -->
+<div class="panel" id="fbSection" style="display:none;max-width:700px;width:100%;margin-top:0;">
+  <div class="panel-title" style="margin-bottom:14px">✍️ FACEBOOK POST</div>
+  <div id="fbLoading" style="display:none;align-items:center;gap:10px;color:var(--green);font-size:13px;margin-bottom:12px;">
+    <div class="spinner"></div><span>Writing your post...</span>
+  </div>
+  <textarea id="fbPostText" style="width:100%;min-height:220px;background:var(--card2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:14px;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.6;outline:none;resize:vertical;display:none;" placeholder="Your post will appear here..."></textarea>
+  <div style="margin-top:10px;display:flex;gap:8px;">
+    <button onclick="copyPost()" id="copyPostBtn" style="flex:1;padding:12px;background:transparent;border:1px solid var(--green);color:var(--green);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;transition:background .15s,color .15s;display:none;">📋 COPY POST</button>
+    <button onclick="regenPost()" id="regenBtn" style="padding:12px 16px;background:transparent;border:1px solid var(--border2);color:var(--muted2);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;display:none;">↺ Different angle</button>
+  </div>
+  <div id="copyPostConfirm" style="display:none;text-align:center;color:var(--green);font-size:12px;margin-top:8px;font-weight:600;">✓ Copied to clipboard!</div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let allRows = [], photos = [null,null,null], csvLoaded = false;
+let activePeriod = 'today';
+let enabledPlats = new Set(['eBay','Poshmark','Depop','Mercari']);
+
+const PC = { eBay:'#e53238', Poshmark:'#d4365c', Depop:'#ff2300', Mercari:'#ff0211' };
+const REQUIRED = ['Total Profit','Sale Price','Marketplace','Item Name','Days Listed','Sold At'];
+const fmt = n => '$' + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const now = new Date();
+
+// ── Period label logic ──────────────────────────────────────────────────
+const PERIODS = {
+  today:     { label: () => now.toLocaleDateString('en-US',{month:'long',day:'2-digit',year:'numeric'}),     sub: () => 'Daily' },
+  yesterday: { label: () => { const d=new Date(now); d.setDate(d.getDate()-1); return d.toLocaleDateString('en-US',{month:'long',day:'2-digit',year:'numeric'}); }, sub: () => 'Daily' },
+  week:      { label: () => 'This Week',    sub: () => weekRange() },
+  month:     { label: () => now.toLocaleDateString('en-US',{month:'long',year:'numeric'}), sub: () => 'Monthly' },
+  quarter:   { label: () => `Q${Math.ceil((now.getMonth()+1)/3)} ${now.getFullYear()}`,    sub: () => 'Quarterly' },
+  year:      { label: () => String(now.getFullYear()),                                      sub: () => 'Annual' },
+};
+function weekRange() {
+  const s=new Date(now); s.setDate(now.getDate()-now.getDay());
+  const e=new Date(s);   e.setDate(s.getDate()+6);
+  const mo = d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  return mo(s)+' – '+mo(e);
+}
+
+function initPeriodSubs() {
+  Object.keys(PERIODS).forEach(k => {
+    document.getElementById('ps-'+k).textContent = PERIODS[k].sub();
+  });
+}
+function setPeriod(k) {
+  activePeriod = k;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pb-'+k).classList.add('active');
+}
+
+// ── Platform toggles ───────────────────────────────────────────────────
+function togglePlat(name, cb) {
+  cb.checked ? enabledPlats.add(name) : enabledPlats.delete(name);
+  document.getElementById('tog-'+name).className = 'plat-toggle '+(cb.checked?'on':'off');
+  if (csvLoaded) renderStats();
+}
+
+// ── CSV ────────────────────────────────────────────────────────────────
+document.getElementById('csvFile').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const {headers,rows} = parseCSV(e.target.result);
+      validateCols(headers);
+      allRows = rows;
+      csvLoaded = true;
+      document.getElementById('csvChosen').textContent = '✓ ' + file.name + ' — ' + rows.length + ' rows loaded';
+      document.getElementById('csvChosen').style.display = 'block';
+      renderStats();
+      checkReady();
+    } catch(err) { setStatus('error', err.message); }
+  };
+  r.readAsText(file);
+});
+const csvDrop = document.getElementById('csvDrop');
+csvDrop.addEventListener('dragover', e=>{e.preventDefault();csvDrop.classList.add('dragover');});
+csvDrop.addEventListener('dragleave', ()=>csvDrop.classList.remove('dragover'));
+csvDrop.addEventListener('drop', e=>{
+  e.preventDefault(); csvDrop.classList.remove('dragover');
+  const f=e.dataTransfer.files[0];
+  if(f){const i=document.getElementById('csvFile');const dt=new DataTransfer();dt.items.add(f);i.files=dt.files;i.dispatchEvent(new Event('change'));}
+});
+
+// ── RFC-4180 CSV parser (handles embedded newlines & escaped quotes) ───
+function parseCSV(text) {
+  const fields=[], rowBreaks=[0];
+  let cur='', inQ=false, i=0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch==='"') {
+      if (inQ && text[i+1]==='"') { cur+='"'; i+=2; continue; }
+      inQ=!inQ;
+    } else if (ch===',' && !inQ) {
+      fields.push(cur); cur='';
+    } else if ((ch==='\n' || (ch==='\r' && text[i+1]==='\n')) && !inQ) {
+      if (ch==='\r') i++;
+      fields.push(cur); cur='';
+      rowBreaks.push(fields.length);
+    } else { cur+=ch; }
+    i++;
+  }
+  fields.push(cur);
+  rowBreaks.push(fields.length);
+  const clean = f=>(f||'').replace(/^"|"$/g,'').trim();
+  const headers = fields.slice(rowBreaks[0], rowBreaks[1]).map(clean);
+  const rows=[];
+  for (let r=1; r<rowBreaks.length-1; r++) {
+    const cols = fields.slice(rowBreaks[r], rowBreaks[r+1]);
+    if (!cols.length || cols.every(c=>!c)) continue;
+    const row={}; headers.forEach((h,j)=>row[h]=clean(cols[j]||''));
+    rows.push(row);
+  }
+  return {headers, rows};
+}
+
+function validateCols(headers) {
+  const el=document.getElementById('colCheck');
+  el.innerHTML=''; let allOk=true;
+  REQUIRED.forEach(col=>{
+    const ok=headers.includes(col); if(!ok) allOk=false;
+    const p=document.createElement('div'); p.className='col-pill '+(ok?'ok':'miss');
+    p.innerHTML=(ok?'✓ ':'✗ ')+col; el.appendChild(p);
+  });
+  el.classList.add('visible');
+  if(!allOk) throw new Error('Missing required columns — see red pills above');
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────
+function calcStats(rows) {
+  const money = s=>parseFloat((s||'0').replace(/[$,]/g,''))||0;
+  const int   = s=>parseInt(s)||0;
+  let rev=0, profit=0;
+  const platforms={}, items=[];
+  for (const r of rows) {
+    const plat=(r['Marketplace']||'').trim();
+    if (!enabledPlats.has(plat)) continue;
+    const p=money(r['Total Profit']), s=money(r['Sale Price']);
+    const name=(r['Item Name']||'').trim(), days=int(r['Days Listed']);
+    rev+=s; profit+=p;
+    platforms[plat]=(platforms[plat]||0)+1;
+    items.push({name,profit:p,sale:s,days,platform:plat});
+  }
+  items.sort((a,b)=>b.profit-a.profit);
+  return { totalRevenue:rev, totalProfit:profit, totalItems:items.length, platforms, top3:items.slice(0,3) };
+}
+
+function renderStats() {
+  const panel=document.getElementById('statsPanel');
+  const inner=document.getElementById('statsInner');
+  panel.style.display='block';
+  const s=calcStats(allRows);
+  if (!s.totalItems) {
+    inner.innerHTML='<div class="no-data">No rows found for the selected platforms.</div>';
+    updateSlotNames([]); return;
+  }
+  const margin=s.totalRevenue>0?(s.totalProfit/s.totalRevenue*100).toFixed(1):'0.0';
+  const platRow=Object.entries(s.platforms).map(([k,v])=>
+    `<span style="color:${PC[k]||'#888'};font-size:15px">${k} <span style="color:var(--text)">${v}</span></span>`
+  ).join('<span style="color:var(--border2)"> · </span>');
+  inner.innerHTML=`
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-lbl">Revenue</div><div class="stat-val">${fmt(s.totalRevenue)}</div></div>
+      <div class="stat-box"><div class="stat-lbl">Profit</div><div class="stat-val">${fmt(s.totalProfit)}</div></div>
+      <div class="stat-box"><div class="stat-lbl">Items Sold</div><div class="stat-val neutral">${s.totalItems}</div></div>
+      <div class="stat-box" style="grid-column:span 3">
+        <div class="stat-lbl">Margin · Platforms</div>
+        <div class="stat-val" style="font-size:16px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+          <span>${margin}%</span>${platRow}
+        </div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="top3-lbl">TOP 3 BY PROFIT — upload photos in this order ↓</div>
+    <div class="top3-list">
+      ${s.top3.map((item,i)=>`
+        <div class="top3-row">
+          <div class="t3-rank">#${i+1}</div>
+          <div class="t3-info">
+            <div class="t3-name">${item.name||'Unknown'}</div>
+            <div class="t3-meta">
+              <span class="plat-sm" style="background:${PC[item.platform]||'#333'}22;color:${PC[item.platform]||'#888'}">${item.platform}</span>
+              <span>Sold ${fmt(item.sale)}</span>
+              ${item.days===0?'<span class="sameday-chip">⚡ Same Day</span>':`<span>${item.days}d listed</span>`}
+            </div>
+          </div>
+          <div class="t3-profit">${fmt(item.profit)}</div>
+        </div>`).join('')}
+    </div>`;
+  updateSlotNames(s.top3);
+}
+
+function updateSlotNames(top3) {
+  ['Highest Profit','2nd Profit','3rd Profit'].forEach((d,i)=>{
+    document.getElementById('sn'+i).textContent=top3[i]?top3[i].name:d;
+  });
+}
+
+// ── Photos ─────────────────────────────────────────────────────────────
+function handlePhoto(idx,input) {
+  const file=input.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    photos[idx]=e.target.result;
+    const slot=document.getElementById('slot'+idx);
+    let img=slot.querySelector('img');
+    if(!img){img=document.createElement('img');slot.appendChild(img);}
+    img.src=e.target.result;
+    ['slot-rank','slot-name','slot-hint'].forEach(c=>slot.querySelector('.'+c).style.display='none');
+  };
+  r.readAsDataURL(file);
+}
+function removePhoto(idx,e) {
+  e.stopPropagation(); photos[idx]=null;
+  const slot=document.getElementById('slot'+idx);
+  const img=slot.querySelector('img'); if(img) img.remove();
+  ['slot-rank','slot-name','slot-hint'].forEach(c=>slot.querySelector('.'+c).style.display='');
+  slot.querySelector('input[type="file"]').value='';
+}
+function checkReady() {
+  document.getElementById('genBtn').disabled = !csvLoaded;
+}
+
+let generatedHTML = '';
+
+function copyHTML() {
+  if (!generatedHTML) return;
+  navigator.clipboard.writeText(generatedHTML).then(() => {
+    document.getElementById('copyConfirm').style.display = 'block';
+    document.getElementById('copyBtn').textContent = '✓ COPIED!';
+    setTimeout(()=>{
+      document.getElementById('copyBtn').textContent = '📋 COPY HTML FOR TEXTASTIC';
+      document.getElementById('copyConfirm').style.display = 'none';
+    }, 4000);
+  }).catch(() => {
+    // Fallback for browsers that block clipboard
+    const ta = document.createElement('textarea');
+    ta.value = generatedHTML;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    document.getElementById('copyConfirm').style.display = 'block';
+    document.getElementById('copyBtn').textContent = '✓ COPIED!';
+    setTimeout(()=>{
+      document.getElementById('copyBtn').textContent = '📋 COPY HTML FOR TEXTASTIC';
+      document.getElementById('copyConfirm').style.display = 'none';
+    }, 4000);
+  });
+}
+
+// ── Generate ───────────────────────────────────────────────────────────
+async function generate() {
+  if(!csvLoaded) return;
+  setStatus('loading','Crunching numbers...');
+  const stats=calcStats(allRows);
+  const periodLabel=PERIODS[activePeriod].label();
+  const hasPhoto=photos.map(p=>!!p);
+  lastStats = stats;
+  lastPeriodLabel = periodLabel;
+  setStatus('loading','Claude is building your recap graphic...');
+
+  const prompt=`You are building a self-contained HTML sales recap graphic for a reseller to post on Instagram and TikTok. Return ONLY raw HTML — no markdown, no code fences, no explanation.
+
+PERIOD LABEL (use this as the header date/period text): "${periodLabel}"
+
+SALES DATA (pre-calculated — use exactly, do not recalculate):
+Total Revenue: ${fmt(stats.totalRevenue)}
+Total Profit: ${fmt(stats.totalProfit)}
+Items Sold: ${stats.totalItems}
+Platform breakdown: ${JSON.stringify(stats.platforms)}
+Top 3 items: ${JSON.stringify(stats.top3.map(i=>({name:i.name,profit:fmt(i.profit),sale:fmt(i.sale),platform:i.platform,days:i.days})))}
+
+STRICT DESIGN RULES — never deviate:
+• Background #080808 · Card bg #0f0f0f · Accent green #18ff6d
+• Load from Google Fonts: Bebas Neue (headers/numbers) + DM Sans (body)
+• Outer wrapper max-width 520px, centered, subtle green glow box-shadow, padding 16px
+• Keep everything COMPACT — the entire graphic must fit in one phone screenshot with no scrolling
+• Photo box: 1:1 aspect ratio, object-fit contain, 6px inner padding, background #111, border-radius 8px
+• Platform colors: eBay #e53238 · Poshmark #d4365c · Depop #ff2300 · Mercari #ff0211
+• Currency always formatted as $X,XXX.XX
+• NO Same Day badge anywhere — remove it entirely
+
+HEADER (very important):
+• Left side: period label "${periodLabel}" in large Bebas Neue white, e.g. "MARCH 18, 2026"
+• Right side: green rounded pill badge "${stats.totalItems} ITEMS SOLD" in Bebas Neue black on green
+• Same row, space-between, margin-bottom 12px
+
+PHOTO GRID — 3 equal columns, tight gap (8px), all cards same height, align-items:start:
+• Every card has this EXACT structure, no exceptions:
+  1. Photo box (1:1) with:
+     - Rank badge: top-left, 20px circle, green bg #18ff6d, black Bebas Neue font-size 11px
+     - Sold price chip: SMALL pill bottom-center, font-size 10px, white border, dark bg rgba(0,0,0,0.75), white DM Sans text showing the sale price e.g. "$299.99" — subtle
+  2. Platform pill: solid colored bg, white Bebas Neue font-size 11px, border-radius 20px, padding 3px 10px, margin-top 6px, display inline-block
+  3. Item name: DM Sans 11px, 2-line clamp, color #888, margin-top 3px, line-height 1.3
+  4. PROFIT: Bebas Neue green #18ff6d, font-size 22px, margin-top 4px, line-height 1 — this is the hero number
+  5. Days listed: DM Sans 10px, color #555, e.g. "166 days listed" or "3 days listed", margin-top 2px
+
+STATS BAR — compact, tight padding:
+• "REVENUE" label small caps muted, value in Bebas Neue green large
+• "PROFIT" label small caps muted, value in Bebas Neue green large
+• Side by side, divider lines above and below, padding 12px 0
+
+PLATFORM PILLS ROW — compact, centered, gap 6px, font-size 12px
+FOOTER — "${stats.totalItems} ITEMS SOLD · MULTI-PLATFORM RESELLER" muted centered, font-size 10px, margin-top 8px
+
+STRUCTURE (exact order):
+1. HEADER — date left + items sold right, same row
+2. 3-COLUMN PHOTO GRID
+3. STATS BAR
+4. PLATFORM PILLS
+5. FOOTER
+
+PHOTO SLOTS (true=photo injected by app after generation, false=use dark placeholder):
+Rank 1: ${hasPhoto[0]}, Rank 2: ${hasPhoto[1]}, Rank 3: ${hasPhoto[2]}
+
+For each slot where photo=true: output an img tag with id="photo-1", "photo-2", or "photo-3" and src="" (empty string). The app replaces src with the real image after. For false slots: show a dark #181818 placeholder div with the rank number centered in green Bebas Neue, no img tag.
+
+Output the complete self-contained HTML file now. Make it premium and shareable.`;
+
+  let rawResponse = '';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    rawResponse = await res.text();
+
+    if (!res.ok) {
+      // Try to parse error message, fall back to raw text
+      try {
+        const errData = JSON.parse(rawResponse);
+        throw new Error(`API ${res.status}: ${errData.error?.message || rawResponse.slice(0,200)}`);
+      } catch(parseErr) {
+        if (parseErr.message.startsWith('API')) throw parseErr;
+        throw new Error(`HTTP ${res.status}: ${rawResponse.slice(0,200)}`);
+      }
+    }
+
+    let data;
+    try {
+      data = JSON.parse(rawResponse);
+    } catch(e) {
+      throw new Error(`Could not parse response: ${rawResponse.slice(0,200)}`);
+    }
+
+    if (data.error) throw new Error(data.error.message);
+    if (!data.content || !Array.isArray(data.content)) {
+      throw new Error(`Unexpected response shape: ${JSON.stringify(data).slice(0,200)}`);
+    }
+
+    let html = data.content.map(b => b.type === 'text' ? b.text : '').join('');
+    html = html.replace(/^```html?\n?/, '').replace(/\n?```$/, '').trim();
+
+    if (!html.includes('<html') && !html.includes('<!DOCTYPE')) {
+      throw new Error(`Response doesn't look like HTML: ${html.slice(0,200)}`);
+    }
+
+    // Inject base64 photos into the HTML — never sent to Claude
+    photos.forEach((b64, i) => {
+      if (!b64) return;
+      const id = `photo-${i+1}`;
+      html = html.replace(
+        new RegExp(`(<img[^>]*id="${id}"[^>]*src=)""`, 'i'), `$1"${b64}"`
+      ).replace(
+        new RegExp(`(<img[^>]*src="")[^>]*(id="${id}")`, 'i'), `<img src="${b64}" $2`
+      );
+    });
+
+    generatedHTML = html;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    document.getElementById('previewFrame').src = url;
+    document.getElementById('downloadBtn').href = url;
+    const ps = document.getElementById('previewSection');
+    ps.classList.add('visible');
+    ps.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setStatus('success', '✓ Graphic ready! Copy HTML → paste into Textastic on your phone.');
+    document.getElementById('fbSection').style.display = 'block';
+    document.getElementById('fbSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    generateFBPost();
+
+  } catch(err) {
+    setStatus('error', err.message);
+  }
+}
+
+// ── FB Post Generation ────────────────────────────────────────────────
+let lastStats = null;
+let lastPeriodLabel = '';
+const NIFTY_LINK = 'https://bit.ly/NiftyAI';
+
+async function generateFBPost() {
+  if (!lastStats) return;
+  const s = lastStats;
+
+  // Count same-day sales
+  const sameDayCount = allRows.filter(r => (parseInt(r['Days Listed'])||0) === 0).length;
+
+  // Find same-day item names
+  const sameDayItems = allRows
+    .filter(r => (parseInt(r['Days Listed'])||0) === 0)
+    .map(r => (r['Item Name']||'').split(' ').slice(0,3).join(' '));
+
+  // Build context for Claude to pick angle
+  const context = {
+    date: lastPeriodLabel,
+    totalProfit: fmt(s.totalProfit),
+    totalRevenue: fmt(s.totalRevenue),
+    totalItems: s.totalItems,
+    sameDayCount,
+    sameDayItems,
+    platforms: s.platforms,
+    top3: s.top3.map(i=>({name:i.name, profit:fmt(i.profit), platform:i.platform, days:i.days})),
+    margin: s.totalRevenue > 0 ? (s.totalProfit/s.totalRevenue*100).toFixed(1)+'%' : '0%'
+  };
+
+  document.getElementById('fbLoading').style.display = 'flex';
+  document.getElementById('fbPostText').style.display = 'none';
+  document.getElementById('copyPostBtn').style.display = 'none';
+  document.getElementById('regenBtn').style.display = 'none';
+
+  const prompt = `You write Facebook posts for a multi-platform reseller who sells on eBay, Poshmark, and Depop. They share daily sales recaps to build an audience and drive engagement.
+
+TODAY'S DATA:
+${JSON.stringify(context, null, 2)}
+
+NIFTY AFFILIATE LINK: ${NIFTY_LINK}
+
+YOUR JOB:
+1. Look at the data and pick the BEST angle for today. Rotate between these styles — never use the same one twice in a row, pick based on what stands out:
+   - "Big profit day" → lead with the numbers, flex it confidently
+   - "Speed/same-day hustle" → highlight fast sales, listing-to-sold momentum (use this if sameDayCount >= 2)
+   - "High-end finds" → storytelling about the premium items, the thrill of the find
+   - "Multi-platform strategy" → why listing everywhere matters, each platform has different buyers
+   - "Honest transparency" → real talk about the grind, wins and process
+   - "Volume hustle" → lots of items moving, consistency angle
+
+2. Write a short, punchy Facebook post. 2-3 paragraphs MAX — each paragraph 1-3 sentences. No fluff, no lengthy explanations. Think how a real person texts, not how a marketer writes. End with one short question or CTA to spark comments.
+
+3. Include 3-4 hashtags only, at the very end.
+
+4. NIFTY AFFILIATE: Only include if it fits naturally — good fits are: multi-platform tracking, staying organized, transparency about tools. If you include it, ONE casual line like "I track everything with Nifty — link in comments" and add on its own line at the bottom: "💬 Comment: ${NIFTY_LINK}"
+
+5. Keep it real — casual, confident, no hype. Short is better.
+
+Return ONLY the post text. No explanation, no label, no quotes around it.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const post = data.content.map(b => b.type==='text' ? b.text : '').join('').trim();
+    document.getElementById('fbPostText').value = post;
+    document.getElementById('fbPostText').style.display = 'block';
+    document.getElementById('copyPostBtn').style.display = 'block';
+    document.getElementById('regenBtn').style.display = 'block';
+  } catch(err) {
+    document.getElementById('fbPostText').value = 'Error generating post: ' + err.message;
+    document.getElementById('fbPostText').style.display = 'block';
+  } finally {
+    document.getElementById('fbLoading').style.display = 'none';
+  }
+}
+
+function regenPost() { generateFBPost(); }
+
+function copyPost() {
+  const text = document.getElementById('fbPostText').value;
+  navigator.clipboard.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0,99999);
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }).finally(() => {
+    document.getElementById('copyPostConfirm').style.display = 'block';
+    document.getElementById('copyPostBtn').textContent = '✓ COPIED!';
+    setTimeout(() => {
+      document.getElementById('copyPostConfirm').style.display = 'none';
+      document.getElementById('copyPostBtn').textContent = '📋 COPY POST';
+    }, 3000);
+  });
+}
+
+function setStatus(type,msg) {
+  const el=document.getElementById('statusEl');
+  el.className='status '+type; el.style.display='flex';
+  document.getElementById('statusText').textContent=msg;
+  document.getElementById('statusSpinner').style.display=type==='loading'?'block':'none';
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+initPeriodSubs();
+</script>
+</body>
+</html>
